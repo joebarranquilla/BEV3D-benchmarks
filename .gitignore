@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+.venv/
+.env
+.mypy_cache/
+.pytest_cache/
+results/
+data/nuscenes/
+checkpoints/
+third_party/
+*.log
+.DS_Store
+checkpoints/

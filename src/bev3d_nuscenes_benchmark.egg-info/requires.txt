@@ -1,0 +1,10 @@
+pyyaml>=6.0
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.8
+tqdm>=4.66
+nuscenes-devkit>=1.1.11
+
+[dev]
+ruff>=0.5.0
+pytest>=8.0

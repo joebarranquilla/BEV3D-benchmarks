@@ -1,0 +1,26 @@
+experiment:
+  name: nuscenes-mini-baseline
+  seed: 42
+
+dataset:
+  name: nuscenes
+  version: v1.0-mini
+  root: data/nuscenes
+  split: mini_val
+
+runtime:
+  device: cuda
+  num_workers: 4
+
+evaluation:
+  metrics:
+    - mAP
+    - NDS
+  save_dir: results
+
+model:
+  name: placeholder
+  framework: openmmlab
+  config_path: ""
+  checkpoint: ""
+  batch_size: 4

@@ -1,0 +1,4 @@
+[console_scripts]
+bevbench = bevbench.benchmark:main
+bevbench-report = bevbench.report:main
+bevbench-viz = bevbench.visualize:main

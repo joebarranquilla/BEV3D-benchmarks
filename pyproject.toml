@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bev3d-nuscenes-benchmark"
+version = "0.1.0"
+description = "Lightweight benchmark harness for BEV 3D detection models on nuScenes-mini"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pyyaml>=6.0",
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "matplotlib>=3.8",
+  "tqdm>=4.66",
+  "nuscenes-devkit>=1.1.11"
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.5.0",
+  "pytest>=8.0"
+]
+
+[project.scripts]
+bevbench = "bevbench.benchmark:main"
+bevbench-report = "bevbench.report:main"
+bevbench-viz = "bevbench.visualize:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

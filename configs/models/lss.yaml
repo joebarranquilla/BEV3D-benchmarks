@@ -1,0 +1,13 @@
+experiment:
+  name: nuscenes-mini-lss
+
+model:
+  name: LSS
+  framework: openmmlab
+  repo_dir: third_party/LSS
+  config_path: third_party/LSS/configs/lss/lss-r50.py
+  checkpoint: checkpoints/lss_r50.pth
+  batch_size: 4
+
+evaluation:
+  metrics_file: results/raw/lss_metrics_summary.json

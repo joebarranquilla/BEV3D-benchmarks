@@ -1,0 +1,17 @@
+experiment:
+  name: nuscenes-mini-bevdepth
+
+model:
+  name: BEVDepth
+  framework: openmmlab
+  repo_dir: third_party/BEVDepth
+  config_path: bevdepth/exps/nuscenes/mv/bev_depth_lss_r50_256x704_128x128_24e_2key.py
+  checkpoint: checkpoints/bevdepth_r50.pth
+  batch_size: 4
+  # BEVDepth requires torch==1.9.0 + CUDA 11.1 + Python<=3.9, which is incompatible
+  # with this project's .venv (Python 3.13). Use a dedicated conda env instead, see
+  # README.md "BEVDepth environment" section for how it was created.
+  python_executable: /usr/prakt/s0012/miniconda3/envs/bevdepth/bin/python
+
+evaluation:
+  metrics_file: third_party/BEVDepth/outputs/nuscenes-mini-bevdepth/metrics_summary.json

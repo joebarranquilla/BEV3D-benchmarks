@@ -1,0 +1,13 @@
+experiment:
+  name: nuscenes-mini-bevformer
+
+model:
+  name: BEVFormer
+  framework: openmmlab
+  repo_dir: third_party/BEVFormer
+  config_path: third_party/BEVFormer/projects/configs/bevformer/bevformer_base.py
+  checkpoint: checkpoints/bevformer_base.pth
+  batch_size: 2
+
+evaluation:
+  metrics_file: results/raw/bevformer_metrics_summary.json
