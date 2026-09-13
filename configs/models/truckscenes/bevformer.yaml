@@ -1,0 +1,14 @@
+experiment:
+  name: truckscenes-mini-bevformer
+
+model:
+  name: BEVFormer
+  framework: openmmlab
+  repo_dir: third_party/BEVFormer
+  config_path: configs/external/bevformer_tiny_truckscenes.py
+  checkpoint: checkpoints/bevformer_tiny_epoch_24.pth
+  batch_size: 1
+  python_executable: /usr/prakt/s0012/miniconda3/envs/bevformer/bin/python
+
+evaluation:
+  metrics_file: results/raw/bevformer_truckscenes_metrics_summary.json

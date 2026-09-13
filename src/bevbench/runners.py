@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import subprocess
 import time
@@ -32,15 +33,58 @@ def _ensure_bevdepth_data_link(config: dict[str, Any], workdir: Path, repo_dir: 
     target.symlink_to(dataset_root)
 
 
+def _resolve_checkpoint(path_str: str, workdir: Path, repo_dir: Path, model_name: str) -> Path:
+    raw_path = Path(path_str)
+    checkpoint = _resolve_path(path_str, workdir, repo_dir)
+    if checkpoint.exists():
+        return checkpoint
+
+    if "bevformer" in model_name:
+        ckpt_dir = (workdir / "checkpoints").resolve()
+        if ckpt_dir.exists():
+            wants_tiny = "tiny" in Path(path_str).name.lower()
+            patterns = ["*bevformer*tiny*.pth"] if wants_tiny else ["bevformer*.pth"]
+            for pattern in patterns:
+                matches = sorted(ckpt_dir.glob(pattern))
+                if matches:
+                    return matches[0]
+
+    if raw_path.is_absolute():
+        searched = [str(raw_path)]
+    else:
+        searched = [str((workdir / raw_path).resolve()), str((repo_dir / raw_path).resolve())]
+
+    raise FileNotFoundError(
+        "Checkpoint not found. Searched: "
+        + ", ".join(searched)
+        + ". Update model.checkpoint in configs/models/*.yaml or place the file in checkpoints/."
+    )
+
+
+def _build_runtime_env(repo_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    pythonpath_entries = [str(repo_dir)]
+
+    mmdet3d_repo = (repo_dir.parent / "mmdetection3d").resolve()
+    if mmdet3d_repo.exists():
+        pythonpath_entries.append(str(mmdet3d_repo))
+
+    existing = env.get("PYTHONPATH", "")
+    if existing:
+        pythonpath_entries.append(existing)
+
+    env["PYTHONPATH"] = ":".join(pythonpath_entries)
+    return env
+
+
 def _build_eval_command(config: dict[str, Any], workdir: Path) -> tuple[list[str], Path]:
     model = config["model"]
     repo_dir = Path(model["repo_dir"])
     repo_dir = repo_dir if repo_dir.is_absolute() else (workdir / repo_dir).resolve()
 
     config_path = _resolve_path(str(model["config_path"]), workdir, repo_dir)
-    checkpoint = _resolve_path(str(model["checkpoint"]), workdir, repo_dir)
-
     model_name = str(model["name"]).lower()
+    checkpoint = _resolve_checkpoint(str(model["checkpoint"]), workdir, repo_dir, model_name)
     batch_size = int(model.get("batch_size", 1))
     exp_name = str(config["experiment"].get("name", model_name))
     python_bin = str(model.get("python_executable", "python"))
@@ -133,9 +177,11 @@ def run_model_eval(config: dict[str, Any], workdir: Path, execute: bool = False)
 
     start = time.perf_counter()
     repo_dir.mkdir(parents=True, exist_ok=True)
+    runtime_env = _build_runtime_env(repo_dir)
     run = subprocess.run(
         cmd,
-        cwd=repo_dir,
+        cwd=workdir,
+        env=runtime_env,
         capture_output=True,
         text=True,
         check=False,

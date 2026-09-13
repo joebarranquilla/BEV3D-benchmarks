@@ -17,10 +17,10 @@ def _resolve_model_repo(config: dict[str, Any], workdir: Path) -> Path:
     return repo_dir
 
 
-def _ensure_nuscenes_visualization_alias(repo_dir: Path, workdir: Path) -> None:
-    dataset_root = (workdir / "data" / "nuscenes").resolve()
+def _ensure_nuscenes_visualization_alias(repo_dir: Path, workdir: Path, dataset_root: Path) -> None:
+    dataset_root = dataset_root.resolve()
     if not dataset_root.exists():
-        raise FileNotFoundError(f"NuScenes dataset not found at {dataset_root}. Run the dataset download step first.")
+        raise FileNotFoundError(f"Dataset not found at {dataset_root}. Run the dataset preparation step first.")
 
     repo_data_dir = repo_dir / "data"
     repo_data_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +60,7 @@ def find_bevdepth_result_json(repo_dir: Path, exp_name: str | None = None) -> Pa
 def render_bevdepth_detections(
     config: dict[str, Any],
     workdir: Path,
-    sample_idx: int = 0,
+    sample_idx: int = 2,
     out_dir: Path | None = None,
 ) -> dict[str, Any]:
     model_name = str(config["model"]["name"]).lower()
@@ -72,25 +72,40 @@ def render_bevdepth_detections(
         }
 
     repo_dir = _resolve_model_repo(config, workdir)
-    _ensure_nuscenes_visualization_alias(repo_dir, workdir)
+    dataset_root = Path(config["dataset"]["root"])
+    if not dataset_root.is_absolute():
+        dataset_root = (workdir / dataset_root).resolve()
+    _ensure_nuscenes_visualization_alias(repo_dir, workdir, dataset_root)
     result_json = find_bevdepth_result_json(repo_dir, config["experiment"].get("name"))
 
     target_dir = out_dir if out_dir is not None else default_output_dir(workdir / "results", config["model"]["name"])
     target_dir = Path(target_dir)
+    if not target_dir.is_absolute():
+        target_dir = (workdir / target_dir).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    target_path = target_dir / f"{config['experiment']['name']}_{sample_idx}.jpg"
+    target_path = (target_dir / f"{config['experiment']['name']}_{sample_idx}.jpg").resolve()
     script_path = repo_dir / "scripts" / "visualize_nusc.py"
     if not script_path.exists():
         raise FileNotFoundError(f"Could not find visualization script at {script_path}.")
 
     python_bin = str(config["model"].get("python_executable", "python"))
+    val_info_name = "nuscenes_infos_val.pkl"
+    dataset_name = str(config.get("dataset", {}).get("name", "")).lower()
+    if dataset_name == "nuscenes":
+        # Existing BEVDepth script expects this alias name for nuScenes visualization.
+        val_info_name = "nuscenes_12hz_infos_val.pkl"
+
     cmd = [
         python_bin,
         str(script_path),
         str(sample_idx),
         str(result_json),
         str(target_path),
+        "--data-root",
+        str(dataset_root),
+        "--val-info",
+        val_info_name,
     ]
     proc = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)
 
@@ -176,17 +191,29 @@ def main() -> None:
     if not out_dir.is_absolute():
         out_dir = (workdir / out_dir).resolve()
 
-    target_path = out_dir / f"{cfg['experiment']['name']}_{args.sample_idx}.jpg"
+    target_path = (out_dir / f"{cfg['experiment']['name']}_{args.sample_idx}.jpg").resolve()
     repo_dir = _resolve_model_repo(cfg, workdir)
-    _ensure_nuscenes_visualization_alias(repo_dir, workdir)
+    dataset_root = Path(cfg["dataset"]["root"])
+    if not dataset_root.is_absolute():
+        dataset_root = (workdir / dataset_root).resolve()
+    _ensure_nuscenes_visualization_alias(repo_dir, workdir, dataset_root)
     script_path = repo_dir / "scripts" / "visualize_nusc.py"
     python_bin = str(cfg["model"].get("python_executable", "python"))
+    val_info_name = "nuscenes_infos_val.pkl"
+    dataset_name = str(cfg.get("dataset", {}).get("name", "")).lower()
+    if dataset_name == "nuscenes":
+        val_info_name = "nuscenes_12hz_infos_val.pkl"
+
     cmd = [
         python_bin,
         str(script_path),
         str(args.sample_idx),
         str(result_json),
         str(target_path),
+        "--data-root",
+        str(dataset_root),
+        "--val-info",
+        val_info_name,
     ]
     out_dir.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)

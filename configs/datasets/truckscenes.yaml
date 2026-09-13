@@ -1,0 +1,8 @@
+experiment:
+  name: truckscenes-mini-baseline
+
+dataset:
+  name: truckscenes
+  version: v1.0-mini
+  root: data/truckscenes/man-truckscenes
+  split: mini_val

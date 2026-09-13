@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 results/
 data/nuscenes/
+data/truckscenes/
 checkpoints/
 third_party/
 *.log

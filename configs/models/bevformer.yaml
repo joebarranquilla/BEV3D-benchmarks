@@ -5,9 +5,10 @@ model:
   name: BEVFormer
   framework: openmmlab
   repo_dir: third_party/BEVFormer
-  config_path: third_party/BEVFormer/projects/configs/bevformer/bevformer_base.py
-  checkpoint: checkpoints/bevformer_base.pth
-  batch_size: 2
+  config_path: third_party/BEVFormer/projects/configs/bevformer/bevformer_tiny.py
+  checkpoint: checkpoints/bevformer_tiny_epoch_24.pth
+  batch_size: 1
+  python_executable: /usr/prakt/s0012/miniconda3/envs/bevformer/bin/python
 
 evaluation:
   metrics_file: results/raw/bevformer_metrics_summary.json
