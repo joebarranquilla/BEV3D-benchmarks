@@ -57,6 +57,34 @@ def find_bevdepth_result_json(repo_dir: Path, exp_name: str | None = None) -> Pa
     return matches[-1]
 
 
+def find_result_json_generic(workdir: Path, repo_dir: Path, exp_name: str | None = None) -> Path:
+    # Search common locations for results_nusc.json for different model repos
+    candidates = []
+    search_paths = [repo_dir / "outputs", workdir / "test", workdir / "results", repo_dir]
+    for p in search_paths:
+        if not p.exists():
+            continue
+        for match in p.rglob("results_nusc.json"):
+            if exp_name is None or exp_name in str(match):
+                candidates.append(match)
+
+    # Fallback: global scan under workdir
+    if not candidates:
+        for match in (workdir).rglob("results_nusc.json"):
+            if exp_name is None or exp_name in str(match):
+                candidates.append(match)
+
+    if not candidates:
+        # Try to find any results_nusc.json and pick the newest
+        all_matches = list((workdir).rglob("results_nusc.json"))
+        if not all_matches:
+            raise FileNotFoundError(
+                f"Could not find a results_nusc.json for experiment {exp_name} under {repo_dir} or workspace."
+            )
+        return sorted(all_matches)[-1]
+    return sorted(candidates)[-1]
+
+
 def render_bevdepth_detections(
     config: dict[str, Any],
     workdir: Path,
@@ -64,11 +92,13 @@ def render_bevdepth_detections(
     out_dir: Path | None = None,
 ) -> dict[str, Any]:
     model_name = str(config["model"]["name"]).lower()
-    if "bevdepth" not in model_name:
+    is_bevdepth = "bevdepth" in model_name
+    is_bevformer = "bevformer" in model_name
+    if not (is_bevdepth or is_bevformer):
         return {
             "model_name": config["model"]["name"],
             "status": "skipped",
-            "reason": "Visualization is currently implemented for BEVDepth only.",
+            "reason": "Visualization is implemented for BEVDepth and BEVFormer only.",
         }
 
     repo_dir = _resolve_model_repo(config, workdir)
@@ -76,7 +106,11 @@ def render_bevdepth_detections(
     if not dataset_root.is_absolute():
         dataset_root = (workdir / dataset_root).resolve()
     _ensure_nuscenes_visualization_alias(repo_dir, workdir, dataset_root)
-    result_json = find_bevdepth_result_json(repo_dir, config["experiment"].get("name"))
+    # Locate the results JSON. BEVDepth places it under its repo outputs; BEVFormer may place it under test/ dirs.
+    if is_bevdepth:
+        result_json = find_bevdepth_result_json(repo_dir, config["experiment"].get("name"))
+    else:
+        result_json = find_result_json_generic(workdir, repo_dir, config["experiment"].get("name"))
 
     target_dir = out_dir if out_dir is not None else default_output_dir(workdir / "results", config["model"]["name"])
     target_dir = Path(target_dir)
@@ -85,11 +119,27 @@ def render_bevdepth_detections(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     target_path = (target_dir / f"{config['experiment']['name']}_{sample_idx}.jpg").resolve()
-    script_path = repo_dir / "scripts" / "visualize_nusc.py"
+    # Choose visualization script. Prefer BEVDepth's visualizer which understands results_nusc.json format.
+    if is_bevdepth:
+        script_path = repo_dir / "scripts" / "visualize_nusc.py"
+    else:
+        # If using BEVDepth visualizer to render BEVFormer outputs, ensure BEVDepth repo has dataset alias
+        bevdepth_repo = (workdir / "third_party" / "BEVDepth").resolve()
+        _ensure_nuscenes_visualization_alias(bevdepth_repo, workdir, dataset_root)
+        script_path = (bevdepth_repo / "scripts" / "visualize_nusc.py").resolve()
     if not script_path.exists():
         raise FileNotFoundError(f"Could not find visualization script at {script_path}.")
 
     python_bin = str(config["model"].get("python_executable", "python"))
+    # If visualizing BEVFormer outputs using BEVDepth visualizer, prefer BEVDepth's python to satisfy deps
+    if is_bevformer:
+        bevdepth_cfg_path = workdir / "configs" / "models" / "truckscenes" / "bevdepth.yaml"
+        if bevdepth_cfg_path.exists():
+            try:
+                bevdepth_cfg = _load_yaml(bevdepth_cfg_path)
+                python_bin = str(bevdepth_cfg.get("model", {}).get("python_executable", python_bin))
+            except Exception:
+                pass
     val_info_name = "nuscenes_infos_val.pkl"
     dataset_name = str(config.get("dataset", {}).get("name", "")).lower()
     if dataset_name == "nuscenes":
@@ -107,7 +157,17 @@ def render_bevdepth_detections(
         "--val-info",
         val_info_name,
     ]
-    proc = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)
+    # If we're using BEVDepth visualizer for BEVFormer outputs, ensure its repo is on PYTHONPATH
+    env = None
+    proc_cwd = repo_dir
+    if is_bevformer:
+        bevdepth_repo = (workdir / "third_party" / "BEVDepth").resolve()
+        env = dict(**__import__("os").environ)
+        prev = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(bevdepth_repo) + (":" + prev if prev else "")
+        proc_cwd = bevdepth_repo
+
+    proc = subprocess.run(cmd, cwd=proc_cwd, env=env, capture_output=True, text=True, check=False)
 
     return {
         "model_name": config["model"]["name"],
@@ -181,9 +241,14 @@ def main() -> None:
     result_json = args.result_json
     workdir = Path.cwd()
     model_name = str(cfg["model"]["name"]).lower()
+    is_bevdepth = "bevdepth" in model_name
+    is_bevformer = "bevformer" in model_name
+    repo_dir = _resolve_model_repo(cfg, workdir)
     if result_json is None:
-        repo_dir = _resolve_model_repo(cfg, workdir)
-        result_json = find_bevdepth_result_json(repo_dir, cfg["experiment"].get("name"))
+        if is_bevdepth:
+            result_json = find_bevdepth_result_json(repo_dir, cfg["experiment"].get("name"))
+        else:
+            result_json = find_result_json_generic(workdir, repo_dir, cfg["experiment"].get("name"))
     else:
         result_json = result_json.resolve()
 
@@ -192,13 +257,25 @@ def main() -> None:
         out_dir = (workdir / out_dir).resolve()
 
     target_path = (out_dir / f"{cfg['experiment']['name']}_{args.sample_idx}.jpg").resolve()
-    repo_dir = _resolve_model_repo(cfg, workdir)
     dataset_root = Path(cfg["dataset"]["root"])
     if not dataset_root.is_absolute():
         dataset_root = (workdir / dataset_root).resolve()
     _ensure_nuscenes_visualization_alias(repo_dir, workdir, dataset_root)
-    script_path = repo_dir / "scripts" / "visualize_nusc.py"
+    if is_bevdepth:
+        script_path = repo_dir / "scripts" / "visualize_nusc.py"
+    else:
+        bevdepth_repo = (workdir / "third_party" / "BEVDepth").resolve()
+        _ensure_nuscenes_visualization_alias(bevdepth_repo, workdir, dataset_root)
+        script_path = (bevdepth_repo / "scripts" / "visualize_nusc.py").resolve()
     python_bin = str(cfg["model"].get("python_executable", "python"))
+    if is_bevformer:
+        bevdepth_cfg_path = workdir / "configs" / "models" / "truckscenes" / "bevdepth.yaml"
+        if bevdepth_cfg_path.exists():
+            try:
+                bevdepth_cfg = _load_yaml(bevdepth_cfg_path)
+                python_bin = str(bevdepth_cfg.get("model", {}).get("python_executable", python_bin))
+            except Exception:
+                pass
     val_info_name = "nuscenes_infos_val.pkl"
     dataset_name = str(cfg.get("dataset", {}).get("name", "")).lower()
     if dataset_name == "nuscenes":
@@ -216,7 +293,16 @@ def main() -> None:
         val_info_name,
     ]
     out_dir.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True, check=False)
+    env = None
+    proc_cwd = repo_dir
+    if not is_bevdepth:
+        bevdepth_repo = (workdir / "third_party" / "BEVDepth").resolve()
+        env = dict(**__import__("os").environ)
+        prev = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = str(bevdepth_repo) + (":" + prev if prev else "")
+        proc_cwd = bevdepth_repo
+
+    proc = subprocess.run(cmd, cwd=proc_cwd, env=env, capture_output=True, text=True, check=False)
 
     print(f"Result JSON: {result_json}")
     print(f"Image output: {target_path}")

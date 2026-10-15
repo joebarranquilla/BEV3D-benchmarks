@@ -106,6 +106,35 @@ def _build_eval_command(config: dict[str, Any], workdir: Path) -> tuple[list[str
         ]
         return cmd, repo_dir
 
+    if "lss" in model_name:
+        dataset_root = Path(config["dataset"]["root"])
+        if not dataset_root.is_absolute():
+            dataset_root = (workdir / dataset_root).resolve()
+        metrics_cfg = Path(str(config["evaluation"]["metrics_file"]))
+        if not metrics_cfg.is_absolute():
+            metrics_cfg = (workdir / metrics_cfg).resolve()
+        cmd = [
+            python_bin,
+            str(config_path),
+            "--lss-dir",
+            str(repo_dir),
+            "--dataroot",
+            str(dataset_root),
+            "--dataset",
+            str(config["dataset"]["name"]),
+            "--version",
+            str(config["dataset"].get("version", "v1.0-mini")),
+            "--checkpoint",
+            str(checkpoint),
+            "--bsz",
+            str(batch_size),
+            "--out",
+            str(metrics_cfg),
+            "--viz-dir",
+            str(workdir / "results" / "visualizations" / f"lss_{config['dataset']['name']}"),
+        ]
+        return cmd, repo_dir
+
     test_script = repo_dir / "tools" / "test.py"
     if not test_script.exists():
         raise FileNotFoundError(
@@ -132,7 +161,7 @@ def _read_metrics_summary(path: Path) -> dict[str, float] | None:
         payload = json.load(f)
 
     metrics = {}
-    for key in ("mean_ap", "nd_score", "mAP", "NDS"):
+    for key in ("mean_ap", "nd_score", "mAP", "NDS", "iou", "loss"):
         if key in payload:
             metrics[key] = float(payload[key])
     return metrics or None

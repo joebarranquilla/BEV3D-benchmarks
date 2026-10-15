@@ -3,11 +3,12 @@ experiment:
 
 model:
   name: LSS
-  framework: openmmlab
+  framework: pytorch
   repo_dir: third_party/LSS
-  config_path: third_party/LSS/configs/lss/lss-r50.py
+  config_path: configs/external/lss_eval.py
   checkpoint: checkpoints/lss_r50.pth
   batch_size: 4
+  python_executable: /usr/prakt/s0012/miniconda3/envs/bevdepth/bin/python
 
 evaluation:
-  metrics_file: results/raw/lss_metrics_summary.json
+  metrics_file: results/raw/lss_nuscenes_metrics_summary.json
