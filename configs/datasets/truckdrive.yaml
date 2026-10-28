@@ -1,0 +1,6 @@
+experiment:
+  name: truckdrive-scene28-baseline
+
+dataset:
+  name: truckdrive
+  root: third_party/TruckDrive/dataset/TruckDrive/scene_28_1

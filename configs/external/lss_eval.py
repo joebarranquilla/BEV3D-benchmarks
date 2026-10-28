@@ -23,6 +23,17 @@ CAMS = {
         "H": 943,
         "W": 1980,
     },
+    "truckdrive": {
+        "cams": [
+            "forward_left_wide",
+            "forward_center_medium",
+            "forward_right_wide",
+            "rearward_left_bottom_medium",
+            "rearward_right_bottom_medium",
+        ],
+        "H": 2168,
+        "W": 3848,
+    },
 }
 
 
@@ -99,12 +110,18 @@ def main() -> None:
         "Ncams": len(spec["cams"]),
     }
 
-    class EvalData(SegmentationData):
-        def fix_nuscenes_formatting(self):
-            pass
+    if args.dataset == "truckdrive":
+        from lss_truckdrive import TruckDriveData
 
-    nusc = NuScenes(version=args.version, dataroot=args.dataroot, verbose=False)
-    valdata = EvalData(nusc, is_train=False, data_aug_conf=data_aug_conf, grid_conf=grid_conf)
+        valdata = TruckDriveData(args.dataroot, data_aug_conf, grid_conf, cams=spec["cams"])
+    else:
+
+        class EvalData(SegmentationData):
+            def fix_nuscenes_formatting(self):
+                pass
+
+        nusc = NuScenes(version=args.version, dataroot=args.dataroot, verbose=False)
+        valdata = EvalData(nusc, is_train=False, data_aug_conf=data_aug_conf, grid_conf=grid_conf)
     valloader = torch.utils.data.DataLoader(valdata, batch_size=args.bsz, shuffle=False, num_workers=args.nworkers)
 
     device = torch.device("cpu") if args.gpuid < 0 else torch.device(f"cuda:{args.gpuid}")

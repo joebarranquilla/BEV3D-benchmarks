@@ -5,9 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <model> [nuscenes|truckscenes] [--viz|--visualize]"
+  echo "Usage: $0 <model> [nuscenes|truckscenes|truckdrive] [--viz|--visualize]"
   echo "Models: bevdepth | lss | bevformer"
-  echo "Datasets: nuscenes (default) | truckscenes"
+  echo "Datasets: nuscenes (default) | truckscenes | truckdrive (LSS only)"
   echo "Optional: EXECUTE=1 $0 <model>"
   echo "Optional: VISUALIZE=1 $0 bevdepth"
   exit 1
@@ -22,7 +22,7 @@ VISUALIZE_FLAG=""
 
 for arg in "$@"; do
   case "$arg" in
-    nuscenes|truckscenes)
+    nuscenes|truckscenes|truckdrive)
       DATASET="$arg"
       ;;
     --viz|--visualize)
@@ -34,9 +34,9 @@ done
 BASE_CFG="configs/base.yaml"
 MODEL_CFG="configs/models/${MODEL}.yaml"
 
-if [[ "$DATASET" == "truckscenes" ]]; then
-  BASE_CFG="configs/datasets/truckscenes.yaml"
-  MODEL_CFG="configs/models/truckscenes/${MODEL}.yaml"
+if [[ "$DATASET" != "nuscenes" ]]; then
+  BASE_CFG="configs/datasets/${DATASET}.yaml"
+  MODEL_CFG="configs/models/${DATASET}/${MODEL}.yaml"
 fi
 
 if [[ "${EXECUTE:-0}" == "1" ]]; then
